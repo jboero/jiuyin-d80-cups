@@ -1,0 +1,68 @@
+#!/usr/bin/python3
+# Query a Jiuyin D80 (NadaProtocol) printer over Bluetooth SPP and print its state.
+# Usage: d80-status AA:BB:CC:DD:EE:FF [rfcomm-channel]
+
+import socket
+import sys
+import time
+
+QUERIES = [("firmware", 0x07), ("battery", 0x08), ("serial", 0x09), ("paper", 0x11),
+           ("cover", 0x12), ("temperature", 0x13), ("auto-off", 0x0E), ("busy", 0x2F)]
+
+
+def decode(kind, b):
+    """Decode a 1C <kind> ... 0D reply frame (payload without 1C/0D)."""
+    if not b:
+        return "no reply"
+    t, p = b[0], b[1:]
+    if t == 0x07 and len(p) >= 3:
+        return f"v{p[0]}.{p[1]}.{p[2]}"
+    if t == 0x04 and p:
+        return {0xA1: "10% (low)", 0xA2: "5% (low)", 0xA3: "3% (low)"}.get(p[0], f"{p[0]}%")
+    if t == 0x08:
+        return p[:15].decode("ascii", "replace")
+    if t == 0x06 and p:
+        return "OUT OF PAPER" if p[0] == 0x88 else "loaded"
+    if t == 0x05 and p:
+        return "OPEN" if p[0] == 0x99 else "closed"
+    if t == 0x03 and p:
+        return "OVERHEATED" if p[0] == 0xA9 else "normal"
+    if t == 0x09 and p:
+        return "never" if p[0] == 0 else f"{p[0]} min"
+    if t == 0x38:
+        return "idle"
+    return b.hex(" ")
+
+
+def main():
+    if len(sys.argv) not in (2, 3):
+        sys.exit("usage: d80-status AA:BB:CC:DD:EE:FF [rfcomm-channel]")
+    mac, ch = sys.argv[1], int(sys.argv[2]) if len(sys.argv) == 3 else 1
+    s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+    s.settimeout(20)
+    try:
+        s.connect((mac, ch))
+    except OSError as e:
+        sys.exit(f"Cannot reach {mac} on RFCOMM channel {ch}: {e.strerror}. "
+                 "Is the printer on, paired and in range?")
+    for name, code in QUERIES:
+        s.sendall(bytes([0x1F, 0x11, 0x05, code]))
+        time.sleep(0.4)
+        s.settimeout(0.8)
+        buf = b""
+        try:
+            while not buf.endswith(b"\r"):
+                d = s.recv(64)
+                if not d:
+                    break
+                buf += d
+        except OSError:
+            pass
+        payload = buf.lstrip(b"\x1a\x1c\x0d")
+        payload = payload[:-1] if payload.endswith(b"\r") else payload
+        print(f"{name:12s} {decode(name, payload)}")
+    s.close()
+
+
+if __name__ == "__main__":
+    main()
