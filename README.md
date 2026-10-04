@@ -9,6 +9,8 @@ ships with only phone and Windows apps, and despite the name it is **not** an
 sheets or fanfold. It ignores plain text and standard ESC/POS text commands,
 so generic receipt-printer drivers silently print nothing.
 
+<img width="1024" height="768" alt="IMG20261004100654" src="https://github.com/user-attachments/assets/4eec5a29-7968-488c-9662-88c7710a6fcb" />
+
 ## Status
 
 | | |
