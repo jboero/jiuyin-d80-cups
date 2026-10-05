@@ -1,12 +1,17 @@
 # Let the bluez-cups "bluetooth" backend (runs as cupsd_t) open L2CAP/RFCOMM
 # sockets. Fedora ships bluez-cups but its policy denies this:
 #   avc: denied { create } ... comm="bluetooth" ... tclass=bluetooth_socket
+# Like the rest of the policy, it is disabled when deny_bluetooth is on.
+# Proposed upstream: https://github.com/fedora-selinux/selinux-policy/pull/3446
 # Remove with: sudo semodule -r cups_bluetooth
-module cups_bluetooth 1.0;
+module cups_bluetooth 1.1;
 
 require {
 	type cupsd_t;
-	class bluetooth_socket { create connect bind read write getattr setattr getopt setopt shutdown ioctl };
+	bool deny_bluetooth;
+	class bluetooth_socket { create connect bind read write getattr setattr getopt setopt shutdown ioctl lock append };
 }
 
-allow cupsd_t self:bluetooth_socket { create connect bind read write getattr setattr getopt setopt shutdown ioctl };
+if (!deny_bluetooth) {
+	allow cupsd_t self:bluetooth_socket { create connect bind read write getattr setattr getopt setopt shutdown ioctl lock append };
+}
